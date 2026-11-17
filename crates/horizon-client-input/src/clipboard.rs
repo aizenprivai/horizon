@@ -122,9 +122,10 @@ pub trait Clipboard {
 /// The system clipboard (`ClipboardManager`). On Wayland, arboard uses the
 /// data-control protocol and falls back to X11 (XWayland) on compositors
 /// without it. When no system clipboard can be reached, text copied in the
-/// game can still be pasted in the game.
+/// game can still be pasted in the game. A UWP build (the Xbox) has only that in-game clipboard.
 #[derive(Default)]
 pub struct SystemClipboard {
+    #[cfg(not(target_vendor = "uwp"))]
     system: Option<arboard::Clipboard>,
     /// The text Horizon last copied (`horizon-ctl status`).
     copied: Option<String>,
@@ -135,6 +136,7 @@ impl SystemClipboard {
     pub fn copied(&self) -> Option<&str> {
         self.copied.as_deref()
     }
+    #[cfg(not(target_vendor = "uwp"))]
     fn system(&mut self) -> Option<&mut arboard::Clipboard> {
         if self.system.is_none() {
             self.system = arboard::Clipboard::new().ok();
@@ -144,6 +146,17 @@ impl SystemClipboard {
 }
 
 impl Clipboard for SystemClipboard {
+    #[cfg(target_vendor = "uwp")]
+    fn get(&mut self) -> String {
+        self.copied.clone().unwrap_or_default()
+    }
+    #[cfg(target_vendor = "uwp")]
+    fn set(&mut self, text: &str) {
+        if !text.is_empty() {
+            self.copied = Some(text.to_owned());
+        }
+    }
+    #[cfg(not(target_vendor = "uwp"))]
     fn get(&mut self) -> String {
         let Some(system) = self.system() else {
             return self.copied.clone().unwrap_or_default();
@@ -158,6 +171,7 @@ impl Clipboard for SystemClipboard {
             }
         }
     }
+    #[cfg(not(target_vendor = "uwp"))]
     fn set(&mut self, text: &str) {
         if text.is_empty() {
             return;

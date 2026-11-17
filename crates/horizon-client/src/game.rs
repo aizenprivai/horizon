@@ -12194,7 +12194,7 @@ fn load_world_rest(
 /// A title-shaped frame: black clear and panorama, only the HUD is drawn.
 /// The window's `HWND`, for the boot screen's GDI paint (`horizon_threads`):
 /// the raw handle read is safe, the paint is not.
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", not(target_vendor = "uwp")))]
 fn hwnd(window: &Window) -> Option<isize> {
     use winit::raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
     match window.window_handle() {

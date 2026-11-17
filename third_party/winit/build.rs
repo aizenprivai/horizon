@@ -11,7 +11,9 @@ fn main() {
         web_platform: { all(target_family = "wasm", target_os = "unknown") },
         macos_platform: { target_os = "macos" },
         ios_platform: { target_os = "ios" },
-        windows_platform: { target_os = "windows" },
+        windows_platform: { all(target_os = "windows", not(target_vendor = "uwp")) },
+        // Horizon: the Universal Windows Platform (`*-uwp-windows-*`), its own backend.
+        uwp_platform: { all(target_os = "windows", target_vendor = "uwp") },
         apple: { any(target_os = "ios", target_os = "macos") },
         free_unix: { all(unix, not(apple), not(android_platform), not(target_os = "emscripten")) },
         redox: { target_os = "redox" },

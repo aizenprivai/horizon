@@ -522,6 +522,25 @@ version = "0.4.1"
 [target.'cfg(target_os = "windows")'.dependencies.unicode-segmentation]
 version = "1.7.1"
 
+# Horizon: the UWP backend (src/platform_impl/uwp).
+[target.'cfg(all(target_os = "windows", target_vendor = "uwp"))'.dependencies.windows]
+version = "0.62.2"
+features = [
+    "ApplicationModel_Core",
+    "Devices_Input",
+    "Foundation",
+    "Graphics_Display",
+    "System",
+    "UI_Core",
+    "UI_Input",
+    "UI_ViewManagement",
+    "Win32_System_WinRT",
+]
+
+# `#[implement]` (the framework view) expands to paths in this crate.
+[target.'cfg(all(target_os = "windows", target_vendor = "uwp"))'.dependencies.windows-core]
+version = "0.62.2"
+
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
 version = "0.52.0"
 features = [

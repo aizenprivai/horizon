@@ -45,8 +45,10 @@ pub fn open_path(path: &Path) -> io::Result<()> {
     match opener(path)? {
         // ShellExecuteExW with the default verb: `open` only takes its folder shortcut
         // (SHOpenFolderAndSelectItems) for a path that is a directory, never for a URI.
-        #[cfg(windows)]
+        #[cfg(all(windows, not(target_vendor = "uwp")))]
         Opener::Shell(uri) => open::that_detached(uri),
+        #[cfg(target_vendor = "uwp")]
+        Opener::Shell(_) => Err(no_desktop()),
         #[cfg(not(windows))]
         Opener::Program(program, path) => spawn(program, path.as_os_str()),
     }
@@ -56,8 +58,13 @@ pub fn open_path(path: &Path) -> io::Result<()> {
 /// is resolved). On Windows ShellExecute keeps it one Unicode value, without passing its query
 /// string through a command interpreter.
 pub fn open_uri(uri: &str) -> io::Result<()> {
-    #[cfg(windows)]
+    #[cfg(all(windows, not(target_vendor = "uwp")))]
     return open::that_detached(uri);
+    #[cfg(target_vendor = "uwp")]
+    return {
+        let _ = uri;
+        Err(no_desktop())
+    };
     #[cfg(not(windows))]
     spawn(
         if cfg!(target_os = "macos") {
@@ -67,6 +74,12 @@ pub fn open_uri(uri: &str) -> io::Result<()> {
         },
         std::ffi::OsStr::new(uri),
     )
+}
+
+/// A UWP app (the Xbox's Dev Mode) has no shell to open files or links in.
+#[cfg(target_vendor = "uwp")]
+fn no_desktop() -> io::Error {
+    io::Error::new(io::ErrorKind::Unsupported, "no desktop to open it on (UWP)")
 }
 
 /// Starts the desktop opener on `arg` and reaps it without blocking the UI thread.

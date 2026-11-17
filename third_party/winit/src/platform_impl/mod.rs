@@ -15,6 +15,8 @@ mod orbital;
 mod web;
 #[cfg(windows_platform)]
 mod windows;
+#[cfg(uwp_platform)]
+mod uwp;
 
 #[cfg(android_platform)]
 use android as platform;
@@ -30,6 +32,8 @@ use orbital as platform;
 use web as platform;
 #[cfg(windows_platform)]
 use windows as platform;
+#[cfg(uwp_platform)]
+use uwp as platform;
 
 pub use self::platform::*;
 
@@ -68,6 +72,7 @@ impl From<Fullscreen> for RootFullscreen {
 #[cfg(all(
     not(ios_platform),
     not(windows_platform),
+    not(uwp_platform),
     not(macos_platform),
     not(android_platform),
     not(x11_platform),

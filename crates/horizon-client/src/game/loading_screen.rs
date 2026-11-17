@@ -119,7 +119,7 @@ impl Loading {
             }
         };
         horizon_client::window::settle_created_fullscreen(&window, fullscreen);
-        #[cfg(target_os = "windows")]
+        #[cfg(all(target_os = "windows", not(target_vendor = "uwp")))]
         if let Some(hwnd) = hwnd(&window) {
             horizon_threads::system_menu::suppress(hwnd);
         }
@@ -130,7 +130,7 @@ impl Loading {
         // keep repainting it as the console's lines arrive; the wgpu frames
         // redraw the same design when they start. GDI is unsafe:
         // horizon-threads holds it (this crate forbids unsafe code).
-        #[cfg(target_os = "windows")]
+        #[cfg(all(target_os = "windows", not(target_vendor = "uwp")))]
         // In the fonts given to `menu_style`; with none, the window stays as it is.
         let boot_paint_stop = hwnd(&window)
             .zip(horizon_client::menu_style::get().fonts)
@@ -163,7 +163,7 @@ impl Loading {
         ) {
             Ok(r) => self.renderer = Some(r),
             Err(e) => {
-                #[cfg(target_os = "windows")]
+                #[cfg(all(target_os = "windows", not(target_vendor = "uwp")))]
                 if let Some(stop) = &boot_paint_stop {
                     stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
@@ -175,7 +175,7 @@ impl Loading {
         drop(boot_step);
         // The wgpu frames take the window over: stop the boot paint thread
         // before the first one presents.
-        #[cfg(target_os = "windows")]
+        #[cfg(all(target_os = "windows", not(target_vendor = "uwp")))]
         if let Some(stop) = &boot_paint_stop {
             stop.store(true, std::sync::atomic::Ordering::Relaxed);
         }

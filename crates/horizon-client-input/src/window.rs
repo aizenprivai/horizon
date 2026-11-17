@@ -685,7 +685,8 @@ pub fn with_icon(attributes: winit::window::WindowAttributes) -> winit::window::
         icon_png().map(|png| decode_icon(png).expect("the window icon must decode on Windows"));
 
     let attributes = attributes.with_window_icon(icon.clone());
-    #[cfg(target_os = "windows")]
+    // A UWP app's icons come from its package manifest.
+    #[cfg(all(target_os = "windows", not(target_vendor = "uwp")))]
     let attributes =
         winit::platform::windows::WindowAttributesExtWindows::with_taskbar_icon(attributes, icon);
     attributes

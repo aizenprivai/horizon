@@ -2064,6 +2064,11 @@ fn backend_order(
     wgpu_backend: bool,
 ) -> Vec<wgpu::Backends> {
     use wgpu::Backends;
+    // A UWP app (the Xbox's Dev Mode) has DirectX 12 and nothing else: no Vulkan loader, no
+    // WGL, whatever the setting says.
+    if cfg!(target_vendor = "uwp") {
+        return vec![Backends::DX12];
+    }
     if os == "macos" || wgpu_backend {
         return vec![Backends::default()];
     }

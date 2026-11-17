@@ -157,6 +157,27 @@ impl crate::Instance for super::Instance {
                     hdr_source: Some(auxil::dxgi::hdr::DxgiHdrSource::new(handle)),
                 })
             }
+            raw_window_handle::RawWindowHandle::WinRt(handle) => {
+                let core_window = handle.core_window.as_ptr();
+                // SAFETY: winit's UWP backend hands the live `CoreWindow`'s interface pointer;
+                // `clone` takes a reference of our own.
+                let core_window = unsafe {
+                    <windows::core::IUnknown as windows::core::Interface>::from_raw_borrowed(
+                        &core_window,
+                    )
+                }
+                .ok_or_else(|| crate::InstanceError::new("null CoreWindow".into()))?
+                .clone();
+                Ok(super::Surface {
+                    factory: self.factory.clone(),
+                    factory_media: self.factory_media.clone(),
+                    target: SurfaceTarget::CoreWindow(core_window),
+                    supports_allow_tearing: self.supports_allow_tearing,
+                    swap_chain: RwLock::new(None),
+                    options: self.options.clone(),
+                    hdr_source: None,
+                })
+            }
             _ => Err(crate::InstanceError::new(format!(
                 "window handle {window_handle:?} is not a Win32 handle"
             ))),

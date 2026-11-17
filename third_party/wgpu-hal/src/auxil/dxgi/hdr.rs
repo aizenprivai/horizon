@@ -5,13 +5,27 @@
 //! numbers under either backend.
 
 use parking_lot::Mutex;
-use windows::{
-    core::Interface as _,
-    Win32::{
-        Foundation::HWND,
-        Graphics::{Dxgi, Gdi},
-    },
+#[cfg(not(target_vendor = "uwp"))]
+use windows::core::Interface as _;
+use windows::Win32::{
+    Foundation::HWND,
+    Graphics::{Dxgi, Gdi},
 };
+
+/// UWP: no GDI monitors to match an output against, and no DisplayConfig API. A UWP surface has no
+/// `DxgiHdrSource` anyway; these keep the module building there.
+#[cfg(target_vendor = "uwp")]
+fn output_desc1_from_factory(
+    _factory: &Dxgi::IDXGIFactory1,
+    _wnd_handle: HWND,
+) -> Option<Dxgi::DXGI_OUTPUT_DESC1> {
+    None
+}
+
+#[cfg(target_vendor = "uwp")]
+fn sdr_white_nits_for_monitor(_hmonitor: Gdi::HMONITOR) -> Option<f32> {
+    None
+}
 
 /// The primary colors of a color space, in CIE 1931 xy:
 /// `[[red_x, red_y], [green_x, green_y], [blue_x, blue_y]]`.
@@ -179,6 +193,7 @@ impl DxgiHdrSource {
 /// on a display wired to a different adapter. `None` if none match.
 ///
 /// [`DXGI_OUTPUT_DESC1`]: Dxgi::DXGI_OUTPUT_DESC1
+#[cfg(not(target_vendor = "uwp"))]
 fn output_desc1_from_factory(
     factory: &Dxgi::IDXGIFactory1,
     wnd_handle: HWND,
@@ -260,6 +275,7 @@ fn output_desc1_from_factory(
 /// Returns `None` on any failure (no match, query error, or a `0` reading). Never
 /// panics. Pass [`Dxgi::DXGI_OUTPUT_DESC1::Monitor`] so the value matches the rest
 /// of the `DisplayHdrInfo`.
+#[cfg(not(target_vendor = "uwp"))]
 fn sdr_white_nits_for_monitor(hmonitor: Gdi::HMONITOR) -> Option<f32> {
     use windows::Win32::{
         Devices::Display::{

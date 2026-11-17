@@ -47,6 +47,7 @@ pub mod pump_events;
     x11_platform,
     wayland_platform,
     orbital_platform,
+    uwp_platform,
     docsrs
 ))]
 pub mod modifier_supplement;

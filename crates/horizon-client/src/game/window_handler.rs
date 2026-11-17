@@ -376,7 +376,7 @@ impl ApplicationHandler for Game<'_> {
             }
         };
         horizon_client::window::settle_created_fullscreen(&window, fullscreen);
-        #[cfg(target_os = "windows")]
+        #[cfg(all(target_os = "windows", not(target_vendor = "uwp")))]
         if let Some(hwnd) = hwnd(&window) {
             horizon_threads::system_menu::suppress(hwnd);
         }

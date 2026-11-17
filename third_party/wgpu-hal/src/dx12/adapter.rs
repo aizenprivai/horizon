@@ -5,16 +5,19 @@ use std::thread;
 use parking_lot::Mutex;
 use windows::{
     core::Interface as _,
-    Win32::{
-        Devices::DeviceAndDriverInstallation::{
-            SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInfo, SetupDiGetClassDevsW,
-            SetupDiGetDeviceRegistryPropertyW, DIGCF_PRESENT, GUID_DEVCLASS_DISPLAY, HDEVINFO,
-            SPDRP_ADDRESS, SPDRP_BUSNUMBER, SPDRP_HARDWAREID, SP_DEVINFO_DATA,
-        },
-        Foundation::{GetLastError, ERROR_NO_MORE_ITEMS},
-        Graphics::{Direct3D, Direct3D12, Dxgi},
-        UI::WindowsAndMessaging,
+    Win32::Graphics::{Direct3D, Direct3D12, Dxgi},
+};
+// Desktop only: UWP apps have neither SetupAPI nor window handles (`get_adapter_pci_info`,
+// `client_extent`).
+#[cfg(not(target_vendor = "uwp"))]
+use windows::Win32::{
+    Devices::DeviceAndDriverInstallation::{
+        SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInfo, SetupDiGetClassDevsW,
+        SetupDiGetDeviceRegistryPropertyW, DIGCF_PRESENT, GUID_DEVCLASS_DISPLAY, HDEVINFO,
+        SPDRP_ADDRESS, SPDRP_BUSNUMBER, SPDRP_HARDWAREID, SP_DEVINFO_DATA,
     },
+    Foundation::{GetLastError, ERROR_NO_MORE_ITEMS},
+    UI::WindowsAndMessaging,
 };
 
 use super::D3D12Lib;
@@ -1293,23 +1296,11 @@ impl crate::Adapter for super::Adapter {
                 SurfaceTarget::WndHandle(wnd_handle)
                 | SurfaceTarget::VisualFromWndHandle {
                     handle: wnd_handle, ..
-                } => {
-                    let mut rect = Default::default();
-                    if unsafe { WindowsAndMessaging::GetClientRect(wnd_handle, &mut rect) }.is_ok()
-                    {
-                        Some(wgt::Extent3d {
-                            width: (rect.right - rect.left) as u32,
-                            height: (rect.bottom - rect.top) as u32,
-                            depth_or_array_layers: 1,
-                        })
-                    } else {
-                        log::warn!("Unable to get the window client rect");
-                        None
-                    }
-                }
+                } => client_extent(wnd_handle),
                 SurfaceTarget::Visual(_)
                 | SurfaceTarget::SurfaceHandle(_)
-                | SurfaceTarget::SwapChainPanel(_) => None,
+                | SurfaceTarget::SwapChainPanel(_)
+                | SurfaceTarget::CoreWindow(_) => None,
             }
         };
 
@@ -1362,7 +1353,9 @@ impl crate::Adapter for super::Adapter {
                 | wgt::TextureUses::COPY_DST,
             present_modes,
             composite_alpha_modes: match surface.target {
-                SurfaceTarget::WndHandle(_) => vec![wgt::CompositeAlphaMode::Opaque],
+                SurfaceTarget::WndHandle(_) | SurfaceTarget::CoreWindow(_) => {
+                    vec![wgt::CompositeAlphaMode::Opaque]
+                }
                 SurfaceTarget::Visual(_)
                 | SurfaceTarget::VisualFromWndHandle { .. }
                 | SurfaceTarget::SurfaceHandle(_)
@@ -1401,6 +1394,36 @@ impl crate::Adapter for super::Adapter {
     }
 }
 
+/// A window's client area, for the surface's current extent.
+#[cfg(not(target_vendor = "uwp"))]
+fn client_extent(wnd_handle: windows::Win32::Foundation::HWND) -> Option<wgt::Extent3d> {
+    let mut rect = Default::default();
+    if unsafe { WindowsAndMessaging::GetClientRect(wnd_handle, &mut rect) }.is_ok() {
+        Some(wgt::Extent3d {
+            width: (rect.right - rect.left) as u32,
+            height: (rect.bottom - rect.top) as u32,
+            depth_or_array_layers: 1,
+        })
+    } else {
+        log::warn!("Unable to get the window client rect");
+        None
+    }
+}
+
+/// UWP has no window handles to measure (and no `user32` for it); the surface is configured from
+/// the app's size.
+#[cfg(target_vendor = "uwp")]
+fn client_extent(_wnd_handle: windows::Win32::Foundation::HWND) -> Option<wgt::Extent3d> {
+    None
+}
+
+/// UWP apps can't enumerate devices through SetupAPI; the PCI bus info is only descriptive.
+#[cfg(target_vendor = "uwp")]
+fn get_adapter_pci_info(_vendor_id: u32, _device_id: u32) -> String {
+    String::new()
+}
+
+#[cfg(not(target_vendor = "uwp"))]
 fn get_adapter_pci_info(vendor_id: u32, device_id: u32) -> String {
     // SAFETY: SetupDiGetClassDevsW is called with valid parameters
     let device_info_set = unsafe {

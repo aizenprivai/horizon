@@ -42,6 +42,13 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     if let Some(dir) = game_args.clone().skip_while(|a| *a != "--home").nth(1) {
         logging::set_game_home(std::path::absolute(dir).unwrap_or_else(|_| dir.into()));
     }
+    // A UWP app (the Xbox's Dev Mode) has no command line and may write only in its own data
+    // folder: that is its home (logs, crash reports), with the game folder in it
+    // (launch_options.rs). A --home given anyway was set first and stays.
+    #[cfg(target_vendor = "uwp")]
+    if let Some(local) = horizon_threads::uwp::local_folder() {
+        logging::set_game_home(local);
+    }
     // The dedicated server logs in its own folder (--game-dir's), as vanilla's does; the game in its home.
     let (home, side, thread) = if args.iter().any(|a| a == "--dedicated") {
         let folder = game_args

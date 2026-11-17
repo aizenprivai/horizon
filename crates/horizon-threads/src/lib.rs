@@ -4,7 +4,7 @@
 pub mod alloc_count;
 pub mod allocator_stats;
 /// The game window's boot screen, before wgpu's first frame paints over it.
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", not(target_vendor = "uwp")))]
 pub mod boot_paint;
 pub mod heap_census;
 #[cfg(target_os = "linux")]
@@ -17,9 +17,12 @@ pub mod profile;
 pub mod sampler;
 pub mod stack_dump;
 /// Alt+Space and a bare Alt never open the window's system menu, as in GLFW.
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", not(target_vendor = "uwp")))]
 pub mod system_menu;
 pub mod unwind;
+/// What a UWP app (the Xbox's Dev Mode) asks the system instead of a command line.
+#[cfg(target_vendor = "uwp")]
+pub mod uwp;
 pub mod work;
 
 use std::sync::{

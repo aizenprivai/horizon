@@ -54,6 +54,14 @@ where WebGL2's minimum 16 was reported before), so a pipeline layout the driver 
 not refused. It is licensed under MIT or Apache-2.0; both licenses are in that folder
 (`LICENSE.MIT`, `LICENSE.APACHE`).
 
+## winit
+
+`third_party/winit` is [winit](https://github.com/rust-windowing/winit) 0.30.13 by the winit
+contributors, with a Universal Windows Platform backend added (`src/platform_impl/uwp`, selected
+on `*-uwp-windows-*` targets) for the Xbox's Dev Mode ([docs/xbox-uwp.md](docs/xbox-uwp.md)). Its
+key table (`uwp/keyboard.rs`) is the Windows backend's, copied. Other targets build it unchanged.
+It is licensed under Apache-2.0 (`LICENSE` in that folder).
+
 ## naga
 
 `third_party/naga` is [naga](https://github.com/gfx-rs/wgpu) 30.0.1 by the gfx-rs developers, with

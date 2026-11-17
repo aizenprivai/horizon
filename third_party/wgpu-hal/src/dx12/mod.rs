@@ -630,6 +630,9 @@ enum SurfaceTarget {
     /// Borrowed, lifetime externally managed
     SurfaceHandle(Foundation::HANDLE),
     SwapChainPanel(types::ISwapChainPanelNative),
+    /// A UWP app's `CoreWindow` (Horizon: the Xbox's Dev Mode), as the `IUnknown` that
+    /// `CreateSwapChainForCoreWindow` takes.
+    CoreWindow(windows::core::IUnknown),
 }
 
 pub struct Surface {
@@ -1578,6 +1581,17 @@ impl crate::Surface for Surface {
                                 )
                         }
                     }
+                    SurfaceTarget::CoreWindow(ref core_window) => {
+                        profiling::scope!("IDXGIFactory2::CreateSwapChainForCoreWindow");
+                        unsafe {
+                            self.factory.CreateSwapChainForCoreWindow(
+                                &device.present_queue,
+                                core_window,
+                                &desc,
+                                None,
+                            )
+                        }
+                    }
                     SurfaceTarget::WndHandle(hwnd) => {
                         profiling::scope!("IDXGIFactory2::CreateSwapChainForHwnd");
                         unsafe {
@@ -1598,7 +1612,9 @@ impl crate::Surface for Surface {
                 })?;
 
                 match &self.target {
-                    SurfaceTarget::WndHandle(_) | SurfaceTarget::SurfaceHandle(_) => {}
+                    SurfaceTarget::WndHandle(_)
+                    | SurfaceTarget::SurfaceHandle(_)
+                    | SurfaceTarget::CoreWindow(_) => {}
                     SurfaceTarget::VisualFromWndHandle {
                         handle,
                         dcomp_state,
@@ -1683,7 +1699,8 @@ impl crate::Surface for Surface {
             SurfaceTarget::Visual(_)
             | SurfaceTarget::VisualFromWndHandle { .. }
             | SurfaceTarget::SurfaceHandle(_)
-            | SurfaceTarget::SwapChainPanel(_) => {}
+            | SurfaceTarget::SwapChainPanel(_)
+            | SurfaceTarget::CoreWindow(_) => {}
         }
 
         unsafe { swap_chain.SetMaximumFrameLatency(config.maximum_frame_latency) }

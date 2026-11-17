@@ -142,6 +142,12 @@ impl Options {
             Err(e) => eprintln!("Horizon: not signed in: {e}"),
         }
         split::launcher::read_now();
+        // UWP (the Xbox): the working directory is the read-only package; the saves go in the
+        // app's own data folder (entry.rs, docs/xbox-uwp.md).
+        #[cfg(target_vendor = "uwp")]
+        if o.game_dir.is_none() {
+            o.game_dir = horizon_threads::uwp::local_folder().map(|local| local.join("game"));
+        }
         if let Some(dir) = o.game_dir.take() {
             // These too stay relative to where the game was started.
             o.resources = std::path::absolute(&o.resources)?;

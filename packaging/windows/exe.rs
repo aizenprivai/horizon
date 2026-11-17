@@ -28,6 +28,12 @@ pub fn resources(bin: &str) {
             _ => "-Wl,--stack,8388608",
         };
         println!("cargo:rustc-link-arg-bin={bin}={arg}");
+        // A UWP app (the Xbox's Dev Mode, docs/xbox-uwp.md) is a Windows-subsystem program with
+        // no console, started at the C runtime's usual `main` entry point.
+        if std::env::var("CARGO_CFG_TARGET_VENDOR").as_deref() == Ok("uwp") {
+            println!("cargo:rustc-link-arg-bin={bin}=/SUBSYSTEM:WINDOWS");
+            println!("cargo:rustc-link-arg-bin={bin}=/ENTRY:mainCRTStartup");
+        }
         let (resource_manifest_dir, resource_icon) = match resource_path(&manifest_dir, &target_env)
             .and_then(|dir| Ok((dir, resource_path(&ico, &target_env)?)))
         {
