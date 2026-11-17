@@ -5,8 +5,13 @@ Xbox's Dev Mode. See docs/xbox-uwp.md.
     python3 tools/uwp_package.py                  # build, lay out .local/uwp/layout, pack if it can
     python3 tools/uwp_package.py --no-build       # lay out an exe built before
     python3 tools/uwp_package.py --pfx dev.pfx    # also sign the package with that certificate
+    python3 tools/uwp_package.py --no-resources   # a package with no game files: a first test
 
-The layout holds the game's prepared resources (`--resources`, by default
+On Windows it packs with the SDK's makeappx and signs with signtool. Elsewhere it packs with
+Microsoft's open-source makemsix (github.com/microsoft/msix-packaging, `--makemsix`) and signs with
+osslsigncode.
+
+Unless `--no-resources`, the layout holds the game's prepared resources (`--resources`, by default
 `.local/horizon-client/26.3`), which come from the player's own Minecraft install: the package is
 for your own console only. Never share it or commit it (`.local/` is ignored).
 """
@@ -82,9 +87,12 @@ def make_assets(icon: Path, dest: Path) -> None:
         image.save(dest / name)
 
 
-def lay_out(exe: Path, resources: Path, layout: Path, manifest: str, dxc: Path | None) -> None:
+def lay_out(
+    exe: Path, resources: Path | None, layout: Path, manifest: str, dxc: Path | None
+) -> None:
     """The package's folder: the executable, its resources beside it (where the game looks first,
-    launch_options.rs), the images and the manifest."""
+    launch_options.rs), the images and the manifest. With no resources the game opens its
+    no-resources screen, which still starts the window, the renderer and the input."""
     if layout.exists():
         shutil.rmtree(layout)
     layout.mkdir(parents=True)
@@ -93,12 +101,13 @@ def lay_out(exe: Path, resources: Path, layout: Path, manifest: str, dxc: Path |
         for dll in ("dxcompiler.dll", "dxil.dll"):
             if (dxc / dll).is_file():
                 shutil.copy2(dxc / dll, layout / dll)
-    if not (resources / "horizon-resources.json").is_file():
-        sys.exit(
-            f"{resources} holds no prepared resources (horizon-resources.json); "
-            "run horizon-prepare first (docs/native-client.md)"
-        )
-    shutil.copytree(resources, layout / "resources")
+    if resources is not None:
+        if not (resources / "horizon-resources.json").is_file():
+            sys.exit(
+                f"{resources} holds no prepared resources (horizon-resources.json); "
+                "run horizon-prepare first (docs/native-client.md), or pass --no-resources"
+            )
+        shutil.copytree(resources, layout / "resources")
     make_assets(ICON, layout / "Assets")
     (layout / "AppxManifest.xml").write_text(manifest, encoding="utf-8")
 
@@ -122,14 +131,16 @@ def windows_sdk_tool(name: str) -> Path | None:
     return None
 
 
-def pack(layout: Path, package: Path, pfx: Path | None, password: str | None) -> bool:
+def pack(
+    layout: Path,
+    package: Path,
+    pfx: Path | None,
+    password: str | None,
+    makemsix: Path | None = None,
+) -> bool:
     makeappx = windows_sdk_tool("makeappx.exe")
     if makeappx is None:
-        print(
-            "No makeappx.exe (Windows SDK): the layout is ready; pack it on Windows with\n"
-            f"  makeappx pack /d {layout} /p {package} /o"
-        )
-        return False
+        return pack_elsewhere(layout, package, pfx, password, makemsix)
     subprocess.run([str(makeappx), "pack", "/d", str(layout), "/p", str(package), "/o"], check=True)
     if pfx is None:
         print(f"Packed {package}, unsigned: Dev Mode installs only signed packages (--pfx).")
@@ -141,6 +152,36 @@ def pack(layout: Path, package: Path, pfx: Path | None, password: str | None) ->
     if password:
         command += ["/p", password]
     subprocess.run(command + [str(package)], check=True)
+    print(f"Packed and signed {package}")
+    return True
+
+
+def pack_elsewhere(
+    layout: Path, package: Path, pfx: Path | None, password: str | None, makemsix: Path | None
+) -> bool:
+    """Packs with makemsix and signs with osslsigncode, for a machine without the Windows SDK."""
+    tool = makemsix or (Path(found) if (found := shutil.which("makemsix")) else None)
+    if tool is None:
+        print(
+            "No makeappx.exe (Windows SDK) or makemsix (--makemsix): the layout is ready; pack it\n"
+            f"on Windows with  makeappx pack /d {layout} /p {package} /o"
+        )
+        return False
+    unsigned = package.with_name(package.stem + ".unsigned.appx") if pfx else package
+    unsigned.unlink(missing_ok=True)
+    subprocess.run([str(tool), "pack", "-d", str(layout), "-p", str(unsigned)], check=True)
+    if pfx is None:
+        print(f"Packed {package}, unsigned: Dev Mode installs only signed packages (--pfx).")
+        return True
+    signer = shutil.which("osslsigncode")
+    if signer is None:
+        sys.exit("No osslsigncode to sign the package with")
+    command = [signer, "sign", "-pkcs12", str(pfx), "-h", "sha256"]
+    if password:
+        command += ["-pass", password]
+    package.unlink(missing_ok=True)
+    subprocess.run(command + ["-in", str(unsigned), "-out", str(package)], check=True)
+    unsigned.unlink()
     print(f"Packed and signed {package}")
     return True
 
@@ -165,6 +206,10 @@ def main() -> None:
     parser.add_argument("--dxc", type=Path, help="folder with dxcompiler.dll and dxil.dll to ship")
     parser.add_argument("--pfx", type=Path, help="certificate to sign the package with")
     parser.add_argument("--pfx-password", help="the certificate's password")
+    parser.add_argument(
+        "--no-resources", action="store_true", help="leave the game's prepared resources out"
+    )
+    parser.add_argument("--makemsix", type=Path, help="makemsix, where the Windows SDK is missing")
     args = parser.parse_args()
 
     exe = exe_path(args.profile) if args.no_build else build(args.profile)
@@ -172,9 +217,11 @@ def main() -> None:
         sys.exit(f"no executable at {exe}")
     manifest = render_manifest(TEMPLATE.read_text(encoding="utf-8"), args.publisher, args.version)
     layout = args.out / "layout"
-    lay_out(exe, args.resources, layout, manifest, args.dxc)
+    resources = None if args.no_resources else args.resources
+    lay_out(exe, resources, layout, manifest, args.dxc)
     print(f"Laid out {layout}")
-    pack(layout, args.out / f"Horizon_{args.version}_x64.appx", args.pfx, args.pfx_password)
+    package = args.out / f"Horizon_{args.version}_x64.appx"
+    pack(layout, package, args.pfx, args.pfx_password, args.makemsix)
 
 
 if __name__ == "__main__":

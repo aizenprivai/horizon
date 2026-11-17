@@ -58,6 +58,24 @@ from `tools/uwp/AppxManifest.xml`), packs `.local\uwp\Horizon_0.1.0.0_x64.appx` 
 `--dxc <folder>` also ships `dxcompiler.dll` and `dxil.dll`; without them DirectX 12 compiles
 shaders with FXC, which is part of Windows.
 
+### Without Windows
+
+The same package can be built on Linux, as it was for the first console test:
+
+- [xwin](https://github.com/Jake-Shadle/xwin) for the MSVC C runtime and the Windows SDK (it asks you
+  to accept Microsoft's license), plus the C runtime's **Store** libraries (`lib\x64\store`, the
+  `Microsoft.VC.14.xx.CRT.x64.Store.base` package of the same Visual Studio manifest), which xwin
+  doesn't fetch.
+- `clang-cl` for the C and C++ parts, with xwin's `crt/include` and `sdk/include/{ucrt,um,shared,winrt}`
+  passed as `/imsvc`; with clang older than 19, also `-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH`.
+- `lld-link` as the linker, with `/LIBPATH:` the Store libraries first, then xwin's
+  `sdk/lib/ucrt/x86_64` and `sdk/lib/um/x86_64`.
+- Microsoft's [makemsix](https://github.com/microsoft/msix-packaging) (built with `-DMSIX_PACK=on`) and
+  `osslsigncode` to pack and sign: `tools/uwp_package.py --no-build --makemsix <path> --pfx <pfx>`.
+
+`--no-resources` leaves the game's files out: the game then opens its no-resources screen, which is
+enough to check that it starts, opens its window and draws on the console.
+
 ## Install on the console
 
 1. Turn the console into Dev Mode (the Xbox Dev Mode Activation app and a Partner Center
