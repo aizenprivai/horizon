@@ -1,10 +1,12 @@
 # Horizon on the Xbox (UWP, Dev Mode)
 
-**Status: prototype, first steps confirmed on an Xbox.** A package without the game files
-installed on a console in Dev Mode, started, and drew Horizon's no-resources screen full screen
-with DirectX 12 (November 2026): the window, the swapchain, the renderer and the app's folders
-work there. Nobody has played a world on it yet. This page says what is there, how to build and
-install it, and what to check next.
+**Status: prototype, playable on an Xbox Series X.** In November 2026 a player installed the
+package in Dev Mode, gave it the game files as `resources.zip`, and played a world: DirectX 12 at
+1920 × 1080 with HDR10 output, sound and the controller all worked. Earlier runs lost the GPU about
+16 s after the title screen (the same second the worldgen data finished loading) and the console
+ended the game during the renderer's 20 s rebuild; the run that worked was the first with DRED on
+(0.1.4.0), so whether the loss is fixed or only rarer is not known yet. This page says what is
+there, how to build and install it, and what to check next.
 
 The Xbox's Dev Mode runs UWP apps you sideload yourself, on your own console, for development
 only. A package built here holds the game's prepared resources, which come from your own Minecraft
