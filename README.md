@@ -3,14 +3,13 @@
 A throwaway branch: a first test of the UWP build from branch `ccr-277f58f5-jy6uwr`
 (docs/xbox-uwp.md there). Delete the branch once installed.
 
-- `Horizon_0.1.5.0_x64.appx`: the game, signed with a self-signed certificate (`CN=HorizonDev`).
-  SHA-256 `bcc09fdc040969e31e6187a57ee8121949fb6a2b5692dae1eba0b2ea72545631`.
+- `Horizon_0.1.6.0_x64.appx`: the game, signed with a self-signed certificate (`CN=HorizonDev`).
+  SHA-256 `c1ef25e5cb1fe27d333e6811e4f200f9293d375e2082a56cee86928f890d8eb6`.
 - `dev.cer`: that certificate, so the console trusts the package.
 
-0.1.5.0 no longer asks the GPU for timestamp queries (the frame timer, first suspect of the
-device reset a few seconds into each run), and reads switches from LocalState\horizon-env.txt
-(`HORIZON_DROP_FEATURES=...`). Game files come from `resources.zip` in LocalState. Install it
-over the earlier version (same certificate).
+0.1.6.0 logs the GPU's removal reason from any failing call (Present too) and each step of the
+window's swapchain, to find why the device is lost after the title artwork's renderer rebuild.
+Install it over the earlier version (same certificate).
 
 It holds **no Minecraft files**: the game opens its "no resources" screen. That is the test:
 does it start, open its window and draw on the console.
