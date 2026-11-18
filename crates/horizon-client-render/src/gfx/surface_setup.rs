@@ -167,6 +167,13 @@ pub(super) async fn open_adapter(
                 | wgpu::Features::CLEAR_TEXTURE
                 | wgpu::Features::TEXTURE_ATOMIC
                 | wgpu::Features::FLOAT32_FILTERABLE));
+    let dropped = dropped_features();
+    let features = features.difference(dropped);
+    if !dropped.is_empty() {
+        startup_step(format_args!(
+            "not asking for [{dropped}] (HORIZON_DROP_FEATURES)"
+        ));
+    }
     let driver = format!("{} {}", info.driver, info.driver_info);
     startup_step(format_args!(
         "requesting the device (driver {}) with features [{features}] and the adapter's \
@@ -293,5 +300,35 @@ mod tests {
         let llvmpipe = [a(DiscreteGpu, true, true), a(Cpu, true, false)];
         assert_eq!(pick_adapter(&llvmpipe, false), None);
         assert_eq!(pick_adapter(&llvmpipe, true), Some(1));
+    }
+}
+
+/// The device features never asked for: `HORIZON_DROP_FEATURES`, wgpu's names comma-separated
+/// (`TIMESTAMP_QUERY,MULTI_DRAW_INDIRECT_COUNT`), to rule one out when a driver loses the device
+/// over it. A UWP build (the Xbox) leaves out the timestamp queries by default: its device was
+/// reset by a bad command a few seconds into every run, and the frame timer's readback is where
+/// the loss showed (docs/xbox-uwp.md); they only time frames. An empty value drops nothing.
+fn dropped_features() -> wgpu::Features {
+    let named = |list: &str| {
+        list.split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .fold(
+                wgpu::Features::empty(),
+                |all, name| match wgpu::Features::from_name(name) {
+                    Some(feature) => all | feature,
+                    None => {
+                        log::warn!("HORIZON_DROP_FEATURES: no wgpu feature {name}");
+                        all
+                    }
+                },
+            )
+    };
+    match std::env::var("HORIZON_DROP_FEATURES") {
+        Ok(list) => named(&list),
+        Err(_) if cfg!(target_vendor = "uwp") => {
+            named("TIMESTAMP_QUERY,TIMESTAMP_QUERY_INSIDE_ENCODERS,TIMESTAMP_QUERY_INSIDE_PASSES")
+        }
+        Err(_) => wgpu::Features::empty(),
     }
 }

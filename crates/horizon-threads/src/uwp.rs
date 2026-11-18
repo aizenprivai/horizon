@@ -115,3 +115,40 @@ impl std::fmt::Write for StackLine {
         Ok(())
     }
 }
+
+/// The `KEY=VALUE` lines [`apply_env_file`] set, for the log once it is open.
+static ENV_FILE_SET: OnceLock<Vec<String>> = OnceLock::new();
+
+/// Sets the environment variables `path` lists, one `KEY=VALUE` a line (`#` starts a comment):
+/// a UWP app gets neither a command line nor an environment of the player's, and these are how
+/// the game's switches are given to it (`HORIZON_DROP_FEATURES`...). Call it first thing in
+/// `main`, before any other thread: changing the environment is only sound then.
+pub fn apply_env_file(path: &Path) {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return;
+    };
+    let mut set = Vec::new();
+    for line in text.lines() {
+        let line = line.trim().trim_start_matches('\u{feff}');
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let (key, value) = (key.trim(), value.trim());
+        if key.is_empty() || key.contains('\0') || value.contains('\0') {
+            continue;
+        }
+        // SAFETY: called before the process starts any other thread (see above), so nothing
+        // reads the environment meanwhile.
+        unsafe { std::env::set_var(key, value) };
+        set.push(format!("{key}={value}"));
+    }
+    let _ = ENV_FILE_SET.set(set);
+}
+
+/// What [`apply_env_file`] set.
+pub fn env_file_set() -> &'static [String] {
+    ENV_FILE_SET.get().map_or(&[], Vec::as_slice)
+}

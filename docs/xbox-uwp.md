@@ -108,6 +108,16 @@ in `LocalState\resources` instead, so a new build doesn't carry them again:
 
 Like the package, the zip holds files from your own Minecraft install: never share it.
 
+## Switches without a new build
+
+A UWP app has no command line and no environment of its own. At its start the game reads
+`LocalState\horizon-env.txt`, one `KEY=VALUE` a line (`#` for comments), and sets those
+environment variables; the log's second lines list them. Upload or edit the file with Device
+Portal's file explorer. `HORIZON_DROP_FEATURES` (wgpu's feature names, comma-separated) keeps the
+renderer from asking for them: the UWP build leaves out `TIMESTAMP_QUERY`,
+`TIMESTAMP_QUERY_INSIDE_ENCODERS` and `TIMESTAMP_QUERY_INSIDE_PASSES` by default (the frame timer;
+see below), and an empty value drops nothing.
+
 ## What to check first on the console
 
 In order, since each needs the one before:

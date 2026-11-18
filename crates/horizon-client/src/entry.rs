@@ -8,6 +8,12 @@ pub fn main() {
 
 /// Start the game with trait mods in dispatch order.
 pub fn main_with(mods: crate::mod_api::Mods) {
+    // A UWP app (the Xbox) takes its switches from LocalState\horizon-env.txt: first, before
+    // any thread starts (docs/xbox-uwp.md).
+    #[cfg(target_vendor = "uwp")]
+    if let Some(local) = horizon_threads::uwp::local_folder() {
+        horizon_threads::uwp::apply_env_file(&local.join("horizon-env.txt"));
+    }
     // First: a trait injection into anything below (logging, the crash handler) calls its mod.
     if crate::mod_api::MODS.set(mods).is_err() {
         log::warn!("Trait mods already installed; ignoring the second list");
@@ -81,6 +87,10 @@ pub fn main_with(mods: crate::mod_api::Mods) {
         );
         // The log's first line names the build, so a bug report that carries the log says which one it was.
         log::info!("Horizon {}", crash::version());
+        #[cfg(target_vendor = "uwp")]
+        for line in horizon_threads::uwp::env_file_set() {
+            log::info!("Horizon: horizon-env.txt sets {line}");
+        }
         crash::install(home.clone(), side);
     }
     let renderers = crate::mod_api::mods()
