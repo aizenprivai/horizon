@@ -12,7 +12,7 @@ set -euo pipefail
 
 # The binary at a fixed commit: a branch address is cached up to 5 minutes and can hand back an
 # older build.
-BIN_URL=https://raw.githubusercontent.com/aizenprivai/horizon/227839bcfb9d2d2ea79875b7c2b5be475efc4162/termux/horizon-prepare
+BIN_URL=https://raw.githubusercontent.com/aizenprivai/horizon/eeab5ea676f950918f34f9c212fa7e5084369560/termux/horizon-prepare
 REPO=https://github.com/aizenprivai/horizon.git
 BRANCH=ccr-277f58f5-jy6uwr
 WORK="$HOME/horizon-prepare"
