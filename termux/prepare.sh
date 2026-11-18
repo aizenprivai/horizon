@@ -4,13 +4,15 @@
 # own Minecraft: Java Edition: it installs the official 26.3 files with portablemc, a command-line
 # launcher, the way a launcher does. The zip holds files from your own copy: never share it.
 #
-#   curl -fsSL https://github.com/aizenprivai/horizon/raw/uwp-test-package/termux/prepare.sh -o prepare.sh
+#   curl -fsSL <this file's address on the uwp-test-package branch> -o prepare.sh
 #   bash prepare.sh
 #
 # It can be run again: finished steps are kept.
 set -euo pipefail
 
-RAW=https://github.com/aizenprivai/horizon/raw/uwp-test-package/termux
+# The binary at a fixed commit: a branch address is cached up to 5 minutes and can hand back an
+# older build.
+BIN_URL=https://raw.githubusercontent.com/aizenprivai/horizon/227839bcfb9d2d2ea79875b7c2b5be475efc4162/termux/horizon-prepare
 REPO=https://github.com/aizenprivai/horizon.git
 BRANCH=ccr-277f58f5-jy6uwr
 WORK="$HOME/horizon-prepare"
@@ -45,8 +47,12 @@ if [ ! -d "$WORK/horizon/.git" ]; then
   git clone --depth 1 --filter=blob:none --sparse --branch "$BRANCH" "$REPO" "$WORK/horizon"
   git -C "$WORK/horizon" sparse-checkout set mods/horizon/src/test/java
 fi
-curl -fL -o "$WORK/horizon-prepare" "$RAW/horizon-prepare"
+curl -fL -o "$WORK/horizon-prepare" "$BIN_URL"
 chmod +x "$WORK/horizon-prepare"
+# Android starts only position-independent programs (ELF type 3) from an app's folder.
+if [ "$(od -An -tu1 -j16 -N1 "$WORK/horizon-prepare" | tr -d ' ')" != 3 ]; then
+  echo "horizon-prepare téléchargé n'est pas la version PIE (ancienne copie en cache ?)"; exit 1
+fi
 
 step "5/6 Préparation (plusieurs minutes : extraction, exporteurs Java, sons)"
 cd "$WORK/horizon"
