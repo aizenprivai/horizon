@@ -237,6 +237,11 @@ impl Options {
             session_stdin: false,
         };
         while let Some(arg) = args.next() {
+            // Windows starts a packaged app, a UWP one on the Xbox included (docs/xbox-uwp.md),
+            // with `-ServerName:<its activation class>`: the system's argument, not the player's.
+            if arg.starts_with("-ServerName:") {
+                continue;
+            }
             match arg.as_str() {
                 "--help" | "-h" => {
                     println!(
@@ -413,5 +418,20 @@ mod tests {
             limit(&["--frames", "10", "--timeout-seconds", "30"]),
             secs(30)
         );
+    }
+
+    /// The argument Windows adds when it activates a packaged app (seen on an Xbox in Dev
+    /// Mode) is skipped, and the player's own options still apply around it.
+    #[test]
+    fn packaged_app_activation_argument_is_skipped() {
+        let args = [
+            "-ServerName:Horizon.AppX2ps6ghbh1e8yg9qqzjbh4w3pw797s47x.mca",
+            "--render-distance",
+            "6",
+        ];
+        let o = Options::parse(args.iter().map(|a| a.to_string()))
+            .unwrap()
+            .unwrap();
+        assert_eq!(o.distance, 6);
     }
 }
