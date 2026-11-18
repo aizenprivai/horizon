@@ -86,7 +86,7 @@ mod device;
 pub mod disk_cache;
 mod device_creation;
 #[cfg(target_vendor = "uwp")]
-mod dred;
+pub(crate) mod dred;
 mod instance;
 mod pipeline_desc;
 mod sampler;
@@ -1548,6 +1548,13 @@ impl crate::Surface for Surface {
                     log::error!("ResizeBuffers failed: {err}");
                     return Err(crate::SurfaceError::Other("window is in use"));
                 }
+                if matches!(self.target, SurfaceTarget::CoreWindow(_)) {
+                    log::info!(
+                        "DX12: CoreWindow swapchain resized to {}x{} ({swap_chain_buffer} buffers)",
+                        config.extent.width,
+                        config.extent.height,
+                    );
+                }
                 raw
             }
             None => {
@@ -1627,6 +1634,13 @@ impl crate::Surface for Surface {
                     log::error!("SwapChain creation error: {err}");
                     crate::SurfaceError::Other("swapchain creation")
                 })?;
+                if matches!(self.target, SurfaceTarget::CoreWindow(_)) {
+                    log::info!(
+                        "DX12: CoreWindow swapchain created, {}x{} ({swap_chain_buffer} buffers)",
+                        config.extent.width,
+                        config.extent.height,
+                    );
+                }
 
                 match &self.target {
                     SurfaceTarget::WndHandle(_)

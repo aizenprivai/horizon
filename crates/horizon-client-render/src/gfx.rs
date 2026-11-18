@@ -2627,9 +2627,21 @@ impl Renderer {
                             .lock()
                             .unwrap_or_else(std::sync::PoisonError::into_inner)
                             .take();
+                        // Which one it is, for a platform that allows one swapchain per window
+                        // (a UWP CoreWindow: docs/xbox-uwp.md).
                         Some(match spare {
-                            Some(surface) => surface,
-                            None => renderer.instance.create_surface(window.clone())?,
+                            Some(surface) => {
+                                startup_step(format_args!(
+                                    "same device: the window's surface handed over"
+                                ));
+                                surface
+                            }
+                            None => {
+                                startup_step(format_args!(
+                                    "same device: a new surface for the window (none handed over)"
+                                ));
+                                renderer.instance.create_surface(window.clone())?
+                            }
                         })
                     },
                     instance: renderer.instance.clone(),

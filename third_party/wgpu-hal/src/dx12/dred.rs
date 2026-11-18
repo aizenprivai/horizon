@@ -33,6 +33,23 @@ pub(super) fn enable(lib: &super::D3D12Lib) {
 
 static REPORTED: AtomicBool = AtomicBool::new(false);
 
+/// The device the last call to [`remember`] gave, for errors raised where no device is at hand
+/// (a swapchain's `Present`, through `auxil::dxgi::result`).
+static DEVICE: parking_lot::Mutex<Option<ID3D12Device>> = parking_lot::Mutex::new(None);
+
+/// Keeps `device` for [`report_remembered`].
+pub(super) fn remember(device: &ID3D12Device) {
+    *DEVICE.lock() = Some(device.clone());
+}
+
+/// [`report`] on the remembered device, from any failed call that saw the device removed.
+pub(crate) fn report_remembered() {
+    let device = DEVICE.lock().clone();
+    if let Some(device) = device {
+        report(&device);
+    }
+}
+
 /// Logs why `device` was removed and what DRED kept, the first time a call sees it lost.
 pub(super) fn report(device: &ID3D12Device) {
     if REPORTED.swap(true, Ordering::Relaxed) {

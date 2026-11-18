@@ -155,7 +155,12 @@ impl DeviceFactory {
                 // UWP (the Xbox): keep what a lost device was doing, for the log (`dred.rs`).
                 #[cfg(target_vendor = "uwp")]
                 super::dred::enable(lib);
-                lib.create_device(adapter, feature_level)
+                let device = lib.create_device(adapter, feature_level);
+                #[cfg(target_vendor = "uwp")]
+                if let Ok(device) = &device {
+                    super::dred::remember(device);
+                }
+                device
             }
         }
     }
