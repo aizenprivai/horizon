@@ -15,6 +15,16 @@ struct Missing {
     pointer: (f64, f64),
     api: horizon_client::graphics::GraphicsApi,
     error: Option<Box<dyn std::error::Error>>,
+    /// UWP: `resources.zip` being unpacked on a thread of its own.
+    #[cfg(target_vendor = "uwp")]
+    unpack: Option<Unpack>,
+}
+
+/// The UWP build's unpacking of `resources.zip` (`horizon_client::resources_zip`).
+#[cfg(target_vendor = "uwp")]
+struct Unpack {
+    progress: Arc<horizon_client::resources_zip::Progress>,
+    result: Arc<std::sync::Mutex<Option<std::result::Result<(), String>>>>,
 }
 
 /// Shows the screen until the player closes it.
@@ -35,13 +45,110 @@ pub(super) fn show(looked_in: &std::path::Path, settings: &Settings) -> Result<(
         pointer: (0.0, 0.0),
         api: settings.horizon.api,
         error: None,
+        #[cfg(target_vendor = "uwp")]
+        unpack: None,
     };
+    #[cfg(target_vendor = "uwp")]
+    {
+        app.unpack = start_unpack(&mut app.screen);
+    }
     horizon_client::hud::GUI_SCALE.store(settings.gui_scale, Ordering::Relaxed);
     EventLoop::new()?.run_app(&mut app)?;
     app.error.map_or(Ok(()), Err)
 }
 
+/// UWP (the Xbox): the prepared files come as `resources.zip` in the app's LocalState
+/// (docs/xbox-uwp.md). With one there, unpack it now that a window shows how far it is;
+/// without, say how to upload it.
+#[cfg(target_vendor = "uwp")]
+fn start_unpack(screen: &mut NoResources) -> Option<Unpack> {
+    use horizon_client::resources_zip;
+    let local = horizon_threads::uwp::local_folder()?;
+    let zip = local.join(resources_zip::ZIP_NAME);
+    if !zip.is_file() {
+        screen.say(
+            horizon_client::lang::get("horizon.no_resources.title"),
+            vec![horizon_client::lang::get("horizon.no_resources.upload")],
+        );
+        return None;
+    }
+    let unpack = Unpack {
+        progress: Arc::default(),
+        result: Arc::default(),
+    };
+    let (progress, result) = (unpack.progress.clone(), unpack.result.clone());
+    std::thread::Builder::new()
+        .name("Resources unpacker".into())
+        .spawn(move || {
+            let unpacked =
+                resources_zip::unpack(&zip, &local.join(resources_zip::FOLDER_NAME), &progress);
+            match &unpacked {
+                // The files are out: the zip only takes room now.
+                Ok(()) => {
+                    let _ = std::fs::remove_file(&zip);
+                    log::info!("Horizon: unpacked {}", zip.display());
+                }
+                Err(e) => log::error!("Horizon: {e}"),
+            }
+            *result.lock().unwrap_or_else(|p| p.into_inner()) = Some(unpacked);
+        })
+        .ok()?;
+    show_unpacking(screen, &unpack);
+    Some(unpack)
+}
+
+/// The screen's text for where the unpacking is.
+#[cfg(target_vendor = "uwp")]
+fn show_unpacking(screen: &mut NoResources, unpack: &Unpack) {
+    let (done, total) = unpack.progress.get();
+    screen.say(
+        horizon_client::lang::get("horizon.no_resources.unpacking"),
+        vec![horizon_client::lang::tr(
+            "horizon.no_resources.unpacking.progress",
+            &[&done, &total],
+        )],
+    );
+}
+
 impl Missing {
+    /// UWP: the unpacking's progress on screen, then its outcome.
+    #[cfg(target_vendor = "uwp")]
+    fn follow_unpack(&mut self) {
+        let Some(unpack) = &self.unpack else {
+            return;
+        };
+        let finished = unpack
+            .result
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .take();
+        match finished {
+            None => show_unpacking(&mut self.screen, unpack),
+            Some(Ok(())) => {
+                self.screen.say(
+                    horizon_client::lang::get("horizon.no_resources.unpacked"),
+                    vec![horizon_client::lang::get(
+                        "horizon.no_resources.unpacked.restart",
+                    )],
+                );
+                self.unpack = None;
+            }
+            Some(Err(e)) => {
+                self.screen.say(
+                    horizon_client::lang::get("horizon.no_resources.title"),
+                    vec![horizon_client::lang::tr(
+                        "horizon.no_resources.unpack_failed",
+                        &[&e],
+                    )],
+                );
+                self.unpack = None;
+            }
+        }
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
     fn size(&self) -> [u32; 2] {
         self.renderer
             .as_ref()
@@ -167,6 +274,8 @@ impl ApplicationHandler for Missing {
             event_loop.exit();
             return;
         }
+        #[cfg(target_vendor = "uwp")]
+        self.follow_unpack();
         // Wake now and then for Ctrl+C in the console; redraws come with events.
         event_loop.set_control_flow(ControlFlow::WaitUntil(
             Instant::now() + Duration::from_millis(250),

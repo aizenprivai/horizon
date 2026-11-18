@@ -45,6 +45,20 @@ class UwpPackageTests(unittest.TestCase):
                 self.assertTrue((layout / path.replace("\\", "/")).is_file(), path)
             self.assertTrue((layout / "resources" / "horizon-resources.json").is_file())
 
+    def test_resources_zip_has_the_manifest_at_its_root(self):
+        import zipfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            resources = tmp / "26.3"
+            (resources / "assets").mkdir(parents=True)
+            (resources / "horizon-resources.json").write_text("{}")
+            (resources / "assets" / "lang.json").write_text("lang")
+            out = tmp / "out" / "resources.zip"
+            uwp_package.zip_resources(resources, out)
+            names = zipfile.ZipFile(out).namelist()
+            self.assertEqual(sorted(names), ["assets/lang.json", "horizon-resources.json"])
+
 
 if __name__ == "__main__":
     unittest.main()

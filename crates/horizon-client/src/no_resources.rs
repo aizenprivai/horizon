@@ -65,6 +65,13 @@ impl NoResources {
         }
     }
 
+    /// Replaces the title and the paragraphs, keeping the buttons: what the UWP build's
+    /// unpacking of `resources.zip` says as it goes (`resources_zip`).
+    pub fn say(&mut self, title: String, paragraphs: Vec<String>) {
+        self.title = title;
+        self.paragraphs = paragraphs;
+    }
+
     /// The buttons' labels, actions and rectangles in dp, and the paragraphs' wrapped
     /// lines: one layout for drawing and clicks.
     fn layout(&self, ui: &Ui) -> Layout {

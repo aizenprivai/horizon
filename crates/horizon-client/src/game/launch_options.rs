@@ -83,6 +83,17 @@ pub(super) struct Options {
     pub(super) session_stdin: bool,
 }
 
+/// Where the prepared resources are when none come with the executable: the checkout's
+/// `.local` folder, or, for a UWP app (the Xbox), the `resources` folder its `resources.zip` is
+/// unpacked to in the app's LocalState (`horizon_client::resources_zip`, docs/xbox-uwp.md).
+fn default_resources() -> PathBuf {
+    #[cfg(target_vendor = "uwp")]
+    if let Some(local) = horizon_threads::uwp::local_folder() {
+        return local.join(horizon_client::resources_zip::FOLDER_NAME);
+    }
+    std::path::Path::new(".local/horizon-client").join(horizon_core::VANILLA_VERSION)
+}
+
 impl Options {
     /// The name to join servers with: the one given, else the offline name kept
     /// next to options.txt (created on first use).
@@ -190,7 +201,7 @@ impl Options {
             resources: if sibling.join("horizon-resources.json").exists() {
                 sibling
             } else {
-                std::path::Path::new(".local/horizon-client").join(horizon_core::VANILLA_VERSION)
+                default_resources()
             },
             distance: 12,
             distance_override: None,

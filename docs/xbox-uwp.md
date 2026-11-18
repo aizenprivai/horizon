@@ -1,9 +1,10 @@
 # Horizon on the Xbox (UWP, Dev Mode)
 
-**Status: prototype, never run on a console yet.** It builds and links for the
-`x86_64-uwp-windows-msvc` target, and its import table names no Windows function a UWP app is
-denied, apart from the standard library's own (below). Nobody has started it on an Xbox. This page
-says what is there, how to build and install it, and what to check first on the console.
+**Status: prototype, first steps confirmed on an Xbox.** A package without the game files
+installed on a console in Dev Mode, started, and drew Horizon's no-resources screen full screen
+with DirectX 12 (November 2026): the window, the swapchain, the renderer and the app's folders
+work there. Nobody has played a world on it yet. This page says what is there, how to build and
+install it, and what to check next.
 
 The Xbox's Dev Mode runs UWP apps you sideload yourself, on your own console, for development
 only. A package built here holds the game's prepared resources, which come from your own Minecraft
@@ -20,7 +21,7 @@ install: **never share it** and never commit it (`tools/check_public_tree.py`).
 | Clipboard | the system's (arboard) | the game's own: text copied in the game pastes in the game |
 | Opening links and folders | the shell (`open`) | refused: there is no desktop (`desktop.rs`) |
 | Folders | working directory, `%APPDATA%\horizon` | the app's `LocalState` (`horizon-threads/src/uwp.rs`): the home (logs, crash reports) is `LocalState`, saves and `options.txt` in `LocalState\game` |
-| Resources | `--resources` or `resources\` beside the exe | `resources\` in the package, beside the exe |
+| Resources | `--resources` or `resources\` beside the exe | `resources\` in the package, beside the exe, else `LocalState\resources`, unpacked from an uploaded `resources.zip` (`resources_zip.rs`) |
 | Executable | console subsystem | Windows subsystem (`packaging/windows/exe.rs`) |
 
 Controllers need nothing new: the game reads them through `Windows.Gaming.Input`, the Xbox's own
@@ -85,19 +86,36 @@ enough to check that it starts, opens its window and draws on the console.
    SDKs\Windows Kits\10\ExtensionSDKs\Microsoft.VCLibs\14.0\Appx\Retail\x64`).
 3. In Dev Home, open the app's **View details** and set its type to **Game**. An app gets a
    small share of the console's memory and GPU; a game gets far more.
-4. Copy nothing else: the resources are in the package, and the game makes its folders in
-   `LocalState` (reachable in Device Portal's file explorer, `LocalAppData\HorizonDev.Horizon_…\LocalState`).
+4. The game makes its folders in `LocalState` (Device Portal's file explorer:
+   `LocalAppData\HorizonDev.Horizon_…\LocalState`): logs and crash reports there, saves in
+   `game\`.
+
+### The game files on their own
+
+A package built with `--no-resources` (or without resources in it) looks for the prepared files
+in `LocalState\resources` instead, so a new build doesn't carry them again:
+
+1. On the computer that prepared them: `python tools/uwp_package.py --zip-resources` writes
+   `.local\uwp\resources.zip` (`--resources <folder>` for another folder, such as the launcher's).
+2. In Device Portal's file explorer, open the app's `LocalState` and upload `resources.zip`. It
+   is one file, so a phone's browser can do it too.
+3. Start Horizon. Its no-resources screen unpacks the zip (the window is already up: a UWP app
+   that takes too long to show it at launch is ended), shows how many files are out, then asks
+   for a restart. The zip is deleted once unpacked; a failed or stopped unpacking leaves it to
+   try again.
+
+Like the package, the zip holds files from your own Minecraft install: never share it.
 
 ## What to check first on the console
 
 In order, since each needs the one before:
 
-1. **It starts.** Rust's standard library on this target still imports a few functions outside
+1. **It starts** (confirmed). Rust's standard library on this target still imports a few functions outside
    the official UWP list: `ProcessPrng` (`bcryptprimitives.dll`, the random seed of every
    `HashMap`), `QueryDosDeviceW` and the `ntdll` file calls behind `std::fs`. Those DLLs exist in
    every Windows process, so the package should load, but only the console can say it does. A
    crash at once is most likely here.
-2. **It draws.** The title screen at 1920 × 1080: the CoreWindow swapchain and DirectX 12 on the
+2. **It draws** (confirmed on the no-resources screen). The title screen at 1920 × 1080: the CoreWindow swapchain and DirectX 12 on the
    console's GPU.
 3. **A controller plays it.** Menus and movement with the pad; B must not leave the app.
 4. **Sound.** The audio output goes through cpal's WASAPI host, which Microsoft lists for UWP apps

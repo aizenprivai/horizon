@@ -6,6 +6,7 @@ Xbox's Dev Mode. See docs/xbox-uwp.md.
     python3 tools/uwp_package.py --no-build       # lay out an exe built before
     python3 tools/uwp_package.py --pfx dev.pfx    # also sign the package with that certificate
     python3 tools/uwp_package.py --no-resources   # a package with no game files: a first test
+    python3 tools/uwp_package.py --zip-resources  # .local/uwp/resources.zip, to upload on its own
 
 On Windows it packs with the SDK's makeappx and signs with signtool. Elsewhere it packs with
 Microsoft's open-source makemsix (github.com/microsoft/msix-packaging, `--makemsix`) and signs with
@@ -112,6 +113,24 @@ def lay_out(
     (layout / "AppxManifest.xml").write_text(manifest, encoding="utf-8")
 
 
+def zip_resources(resources: Path, out: Path) -> None:
+    """The prepared resources as one zip with `horizon-resources.json` at its root, for the
+    game's LocalState (crates/horizon-client/src/resources_zip.rs): Device Portal uploads one
+    file at a time. Like the package, it is for your own console only."""
+    import zipfile
+
+    if not (resources / "horizon-resources.json").is_file():
+        sys.exit(f"{resources} holds no prepared resources (horizon-resources.json)")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    partial = out.with_name(out.name + ".partial")
+    with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(resources.rglob("*")):
+            if path.is_file():
+                archive.write(path, path.relative_to(resources).as_posix())
+    partial.replace(out)
+    print(f"Wrote {out}: upload it to the app's LocalState folder with Device Portal")
+
+
 def windows_sdk_tool(name: str) -> Path | None:
     """`makeappx.exe` or `signtool.exe` from the newest Windows 10/11 SDK, or the PATH's."""
     found = shutil.which(name)
@@ -210,7 +229,16 @@ def main() -> None:
         "--no-resources", action="store_true", help="leave the game's prepared resources out"
     )
     parser.add_argument("--makemsix", type=Path, help="makemsix, where the Windows SDK is missing")
+    parser.add_argument(
+        "--zip-resources",
+        action="store_true",
+        help="only write <out>/resources.zip from --resources, for the game's LocalState",
+    )
     args = parser.parse_args()
+
+    if args.zip_resources:
+        zip_resources(args.resources, args.out / "resources.zip")
+        return
 
     exe = exe_path(args.profile) if args.no_build else build(args.profile)
     if not exe.is_file():
