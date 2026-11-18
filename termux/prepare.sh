@@ -10,9 +10,6 @@
 # It can be run again: finished steps are kept.
 set -euo pipefail
 
-# The binary at a fixed commit: a branch address is cached up to 5 minutes and can hand back an
-# older build.
-BIN_URL=https://raw.githubusercontent.com/aizenprivai/horizon/eeab5ea676f950918f34f9c212fa7e5084369560/termux/horizon-prepare
 REPO=https://github.com/aizenprivai/horizon.git
 BRANCH=ccr-277f58f5-jy6uwr
 WORK="$HOME/horizon-prepare"
@@ -22,9 +19,9 @@ step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 trap 'printf "\n\033[31mÉchec à l étape ci-dessus (ligne %s). Copie les dernières lignes pour Claude.\033[0m\n" "$LINENO"' ERR
 mkdir -p "$WORK"
 
-step "1/6 Paquets Termux : Java 25, Git, Python, zip"
+step "1/6 Paquets Termux : Java 25, Rust, Git, Python, zip"
 pkg update -y
-pkg install -y openjdk-25 git python zip curl
+pkg install -y openjdk-25 rust clang git python zip curl
 JAVA_HOME="$PREFIX/lib/jvm/java-25-openjdk"
 [ -x "$JAVA_HOME/bin/javac" ] || JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")"
 export JAVA_HOME
@@ -42,21 +39,22 @@ if [ ! -f "$WORK/server.jar" ]; then
   mv "$WORK/server.jar.part" "$WORK/server.jar"
 fi
 
-step "4/6 Fichiers de Horizon (research-lock.json et exporteurs Java, environ 5 Mo)"
-if [ ! -d "$WORK/horizon/.git" ]; then
-  git clone --depth 1 --filter=blob:none --sparse --branch "$BRANCH" "$REPO" "$WORK/horizon"
-  git -C "$WORK/horizon" sparse-checkout set mods/horizon/src/test/java
+step "4/6 horizon-prepare, compilé ici avec le Rust de Termux (quelques minutes la première fois)"
+# Built in Termux rather than downloaded: a native program goes through termux-exec, which lets it
+# start Java on recent Android; a static Linux build got neither its arguments nor that.
+SRC="$WORK/src"
+if [ ! -d "$SRC/.git" ]; then
+  git clone --depth 1 --branch "$BRANCH" "$REPO" "$SRC"
+else
+  git -C "$SRC" fetch --depth 1 origin "$BRANCH"
+  git -C "$SRC" reset --hard FETCH_HEAD
 fi
-curl -fL -o "$WORK/horizon-prepare" "$BIN_URL"
-chmod +x "$WORK/horizon-prepare"
-# Android starts only position-independent programs (ELF type 3) from an app's folder.
-if [ "$(od -An -tu1 -j16 -N1 "$WORK/horizon-prepare" | tr -d ' ')" != 3 ]; then
-  echo "horizon-prepare téléchargé n'est pas la version PIE (ancienne copie en cache ?)"; exit 1
-fi
+(cd "$SRC" && cargo build --locked --profile fast -p horizon-prepare)
+PREPARE="$SRC/target/fast/horizon-prepare"
 
 step "5/6 Préparation (plusieurs minutes : extraction, exporteurs Java, sons)"
-cd "$WORK/horizon"
-"$WORK/horizon-prepare" --prepare --complete --root . --minecraft-dir "$MC" \
+cd "$SRC"
+"$PREPARE" --prepare --complete --root . --minecraft-dir "$MC" \
   --server-jar "$WORK/server.jar" --java-home "$JAVA_HOME"
 
 step "6/6 resources.zip"

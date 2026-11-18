@@ -35,13 +35,11 @@ Horizon. The zip holds files from your own Minecraft install: never share it.
 
 ## Preparing the game files on an Android phone (Termux)
 
-`termux/horizon-prepare` is horizon-prepare built for ARM64 Linux (static PIE, as Android runs it, from
-ccr-277f58f5-jy6uwr): it runs in Termux. `termux/prepare.sh` does the whole job there: Java 25,
-Minecraft 26.3's official files with portablemc (only if you own Java Edition), the server jar,
-the preparation and `resources.zip` in Downloads. In Termux (from F-Droid):
+`termux/prepare.sh` does the whole job in Termux: Java 25, Minecraft 26.3's official files with
+portablemc (only if you own Java Edition), the server jar, horizon-prepare compiled there with
+Termux's Rust from ccr-277f58f5-jy6uwr, the preparation and `resources.zip` in Downloads. A
+static Linux build of horizon-prepare got neither its arguments nor the right to start Java
+through Android's loader, so it is built natively instead. Use the script's address at a commit
+(GitHub caches a branch's raw files for five minutes).
 
-    curl -fsSL https://github.com/aizenprivai/horizon/raw/uwp-test-package/termux/prepare.sh -o prepare.sh
-    bash prepare.sh
-
-Untested on a phone so far: portablemc in Termux, and Mojang's code in the exporters on Android's
-Java. The script stops at the first failure and says where.
+Tested on a phone so far: Java 25, portablemc installing 26.3, the server jar.
