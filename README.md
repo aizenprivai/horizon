@@ -35,7 +35,7 @@ Horizon. The zip holds files from your own Minecraft install: never share it.
 
 ## Preparing the game files on an Android phone (Termux)
 
-`termux/horizon-prepare` is horizon-prepare built for ARM64 Linux (static, from
+`termux/horizon-prepare` is horizon-prepare built for ARM64 Linux (static PIE, as Android runs it, from
 ccr-277f58f5-jy6uwr): it runs in Termux. `termux/prepare.sh` does the whole job there: Java 25,
 Minecraft 26.3's official files with portablemc (only if you own Java Edition), the server jar,
 the preparation and `resources.zip` in Downloads. In Termux (from F-Droid):
