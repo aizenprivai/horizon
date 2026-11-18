@@ -151,7 +151,12 @@ impl DeviceFactory {
 
                 result__.ok_or(super::CreateDeviceError::RetDeviceIsNull)
             }
-            Self::Legacy => lib.create_device(adapter, feature_level),
+            Self::Legacy => {
+                // UWP (the Xbox): keep what a lost device was doing, for the log (`dred.rs`).
+                #[cfg(target_vendor = "uwp")]
+                super::dred::enable(lib);
+                lib.create_device(adapter, feature_level)
+            }
         }
     }
 }

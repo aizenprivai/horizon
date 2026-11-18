@@ -560,7 +560,13 @@ impl crate::Device for super::Device {
     ) -> Result<crate::BufferMapping, crate::DeviceError> {
         let mut ptr = ptr::null_mut();
         // TODO: 0 for subresource should be fine here until map and unmap buffer is subresource aware?
-        unsafe { buffer.resource.Map(0, None, Some(&mut ptr)) }.into_device_result("Map buffer")?;
+        let mapped = unsafe { buffer.resource.Map(0, None, Some(&mut ptr)) };
+        // UWP (the Xbox): a lost device shows here first; say why (`dred.rs`).
+        #[cfg(target_vendor = "uwp")]
+        if mapped.is_err() {
+            super::dred::report(&self.raw);
+        }
+        mapped.into_device_result("Map buffer")?;
 
         Ok(crate::BufferMapping {
             ptr: ptr::NonNull::new(unsafe { ptr.offset(range.start as isize).cast::<u8>() })

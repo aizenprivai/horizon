@@ -212,7 +212,13 @@ pub(super) async fn open_adapter(
         if reason == wgpu::DeviceLostReason::Destroyed {
             return;
         }
-        log::warn!("Horizon renderer: the graphics device was lost ({reason:?}: {message})");
+        // With the memory the game holds then: running out of it is one way to lose a device,
+        // on a console where the GPU and the game share one budget.
+        let memory = horizon_threads::process_memory::resident_bytes()
+            .map_or_else(|| "unknown".to_owned(), |b| format!("{} MiB", b >> 20));
+        log::warn!(
+            "Horizon renderer: the graphics device was lost ({reason:?}: {message}); game memory {memory}"
+        );
         lost.store(true, std::sync::atomic::Ordering::Relaxed);
     });
     let configured = match (surface, caps) {

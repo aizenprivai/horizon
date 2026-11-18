@@ -85,6 +85,8 @@ mod descriptor;
 mod device;
 pub mod disk_cache;
 mod device_creation;
+#[cfg(target_vendor = "uwp")]
+mod dred;
 mod instance;
 mod pipeline_desc;
 mod sampler;
@@ -247,6 +249,21 @@ impl D3D12Lib {
         }
 
         blob.ok_or(crate::DeviceError::Unexpected)
+    }
+
+    /// A debug-family interface from `D3D12GetDebugInterface`, such as DRED's settings
+    /// (`dred.rs`); `None` where d3d12.dll doesn't give it.
+    #[cfg(target_vendor = "uwp")]
+    fn debug_interface_of<T: Interface>(&self) -> Option<T> {
+        type Fun = extern "system" fn(
+            riid: *const windows_core::GUID,
+            ppvdebug: *mut *mut ffi::c_void,
+        ) -> windows_core::HRESULT;
+        let func: libloading::Symbol<Fun> =
+            unsafe { self.lib.get(c"D3D12GetDebugInterface".to_bytes()) }.ok()?;
+        let mut result__: Option<T> = None;
+        (func)(&T::IID, <*mut _>::cast(&mut result__)).ok().ok()?;
+        result__
     }
 
     fn debug_interface(&self) -> Result<Option<Direct3D12::ID3D12Debug>, crate::DeviceError> {
