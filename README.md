@@ -3,9 +3,12 @@
 A throwaway branch: a first test of the UWP build from branch `ccr-277f58f5-jy6uwr`
 (docs/xbox-uwp.md there). Delete the branch once installed.
 
-- `Horizon_0.1.0.0_x64.appx`: the game, signed with a self-signed certificate (`CN=HorizonDev`).
-  SHA-256 `81c4feb32042e1d505e3e08e35e2d37cf98ee4a6fc51384a4c5495906beade66`.
+- `Horizon_0.1.1.0_x64.appx`: the game, signed with a self-signed certificate (`CN=HorizonDev`).
+  SHA-256 `ca2c136f585a571c3cc36680ba021985e1f43786a47838f69729bab70c7717ee`.
 - `dev.cer`: that certificate, so the console trusts the package.
+
+0.1.1.0 skips the `-ServerName:` argument Windows starts a packaged app with: 0.1.0.0 stopped
+there. Install it over 0.1.0.0 (same certificate).
 
 It holds **no Minecraft files**: the game opens its "no resources" screen. That is the test:
 does it start, open its window and draw on the console.
