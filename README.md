@@ -3,12 +3,13 @@
 A throwaway branch: a first test of the UWP build from branch `ccr-277f58f5-jy6uwr`
 (docs/xbox-uwp.md there). Delete the branch once installed.
 
-- `Horizon_0.1.1.0_x64.appx`: the game, signed with a self-signed certificate (`CN=HorizonDev`).
-  SHA-256 `ca2c136f585a571c3cc36680ba021985e1f43786a47838f69729bab70c7717ee`.
+- `Horizon_0.1.2.0_x64.appx`: the game, signed with a self-signed certificate (`CN=HorizonDev`).
+  SHA-256 `527f7370cf81b42e41915dd060762ab9a82f1edca27abb2ac8a5387af703316c`.
 - `dev.cer`: that certificate, so the console trusts the package.
 
-0.1.1.0 skips the `-ServerName:` argument Windows starts a packaged app with: 0.1.0.0 stopped
-there. Install it over 0.1.0.0 (same certificate).
+0.1.2.0 takes the game files as one `resources.zip` uploaded to its LocalState folder: its
+no-resources screen unpacks it, then asks for a restart. Install it over the earlier version
+(same certificate).
 
 It holds **no Minecraft files**: the game opens its "no resources" screen. That is the test:
 does it start, open its window and draw on the console.
@@ -24,3 +25,10 @@ does it start, open its window and draw on the console.
 If the install asks for `Microsoft.VCLibs.140.00`, the console lacks the C runtime framework:
 report it. If it starts and quits, the log is in Device Portal > File explorer > LocalAppData >
 `HorizonDev.Horizon_…` > LocalState > `logs`.
+
+## The game files
+
+On a computer that prepared them (docs/xbox-uwp.md on branch `ccr-277f58f5-jy6uwr`):
+`python tools/uwp_package.py --zip-resources` writes `.local/uwp/resources.zip`. Upload it with
+Device Portal > File explorer > LocalAppData > `HorizonDev.Horizon_…` > LocalState, then start
+Horizon. The zip holds files from your own Minecraft install: never share it.
