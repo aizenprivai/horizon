@@ -3,13 +3,14 @@
 A throwaway branch: a first test of the UWP build from branch `ccr-277f58f5-jy6uwr`
 (docs/xbox-uwp.md there). Delete the branch once installed.
 
-- `Horizon_0.1.2.0_x64.appx`: the game, signed with a self-signed certificate (`CN=HorizonDev`).
-  SHA-256 `527f7370cf81b42e41915dd060762ab9a82f1edca27abb2ac8a5387af703316c`.
+- `Horizon_0.1.3.0_x64.appx`: the game, signed with a self-signed certificate (`CN=HorizonDev`).
+  SHA-256 `451633903070580db1dcf54224011e4f3fab22fb8c64b2d8a6c54b4491a1894e`.
 - `dev.cer`: that certificate, so the console trusts the package.
 
-0.1.2.0 takes the game files as one `resources.zip` uploaded to its LocalState folder: its
-no-resources screen unpacks it, then asks for a restart. Install it over the earlier version
-(same certificate).
+0.1.3.0 runs the game loop on a 64 MB stack (0.1.2.0 reached the title screen, then crashed
+with nothing logged) and writes a crash outside Rust's panics to LocalState\native-crash.txt.
+Game files come from `resources.zip` uploaded to LocalState. Install it over the earlier
+version (same certificate).
 
 It holds **no Minecraft files**: the game opens its "no resources" screen. That is the test:
 does it start, open its window and draw on the console.
