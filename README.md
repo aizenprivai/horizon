@@ -32,3 +32,16 @@ On a computer that prepared them (docs/xbox-uwp.md on branch `ccr-277f58f5-jy6uw
 `python tools/uwp_package.py --zip-resources` writes `.local/uwp/resources.zip`. Upload it with
 Device Portal > File explorer > LocalAppData > `HorizonDev.Horizon_…` > LocalState, then start
 Horizon. The zip holds files from your own Minecraft install: never share it.
+
+## Preparing the game files on an Android phone (Termux)
+
+`termux/horizon-prepare` is horizon-prepare built for ARM64 Linux (static, from
+ccr-277f58f5-jy6uwr): it runs in Termux. `termux/prepare.sh` does the whole job there: Java 25,
+Minecraft 26.3's official files with portablemc (only if you own Java Edition), the server jar,
+the preparation and `resources.zip` in Downloads. In Termux (from F-Droid):
+
+    curl -fsSL https://github.com/aizenprivai/horizon/raw/uwp-test-package/termux/prepare.sh -o prepare.sh
+    bash prepare.sh
+
+Untested on a phone so far: portablemc in Termux, and Mojang's code in the exporters on Android's
+Java. The script stops at the first failure and says where.
