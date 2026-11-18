@@ -3,9 +3,16 @@
 //! (`LocalState`, under the package's folder in `%LOCALAPPDATA%\\Packages`): the game keeps
 //! its home and its game folder there (docs/xbox-uwp.md).
 
-use std::path::PathBuf;
+use std::fmt::Write as _;
+use std::fs::{File, OpenOptions};
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use windows::Storage::ApplicationData;
+use windows::Win32::System::Diagnostics::Debug::{AddVectoredExceptionHandler, EXCEPTION_POINTERS};
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 
 /// The app's `LocalState` folder, or `None` when the process isn't a packaged app (the system
 /// then has no app data to give).
@@ -15,4 +22,96 @@ pub fn local_folder() -> Option<PathBuf> {
         .and_then(|folder| folder.Path())
         .ok()?;
     Some(PathBuf::from(path.to_os_string()))
+}
+
+/// The file native crashes are written to, and the executable's load address.
+static CRASH_FILE: OnceLock<File> = OnceLock::new();
+static EXE_BASE: AtomicUsize = AtomicUsize::new(0);
+
+/// Notes in `path` each crash Rust's panics never see: an access violation, a stack overflow,
+/// an illegal instruction, a division by zero or a fail-fast, with the address in the executable
+/// (`exe+0x…`, which a symbol file of the same build names). A UWP app has no console and no
+/// crash dialog: without this, such a crash leaves the log cut short and nothing else. Each run
+/// first adds a `start` line.
+pub fn log_native_crashes(path: &Path) {
+    let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) else {
+        return;
+    };
+    let since_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let _ = writeln!(file, "start {since_epoch} (seconds since 1970)");
+    if CRASH_FILE.set(file).is_err() {
+        return;
+    }
+    // SAFETY: GetModuleHandleW(None) only reads the process's own module list.
+    if let Ok(base) = unsafe { GetModuleHandleW(None) } {
+        EXE_BASE.store(base.0 as usize, Ordering::Relaxed);
+    }
+    // SAFETY: the handler below only reads the exception record and writes to an open file.
+    unsafe {
+        AddVectoredExceptionHandler(1, Some(on_exception));
+    }
+}
+
+/// Writes the crash's line, then lets the exception go on as before. Runs on the crashing
+/// thread, maybe with little stack left: it formats into a buffer on the stack, no allocation.
+unsafe extern "system" fn on_exception(info: *mut EXCEPTION_POINTERS) -> i32 {
+    const CONTINUE_SEARCH: i32 = 0;
+    // SAFETY: the system hands a valid record for the exception being dispatched.
+    let Some(record) = (unsafe { info.as_ref().and_then(|info| info.ExceptionRecord.as_ref()) })
+    else {
+        return CONTINUE_SEARCH;
+    };
+    let code = record.ExceptionCode.0 as u32;
+    let what = match code {
+        0xC000_0005 => "access violation",
+        0xC000_00FD => "stack overflow",
+        0xC000_001D => "illegal instruction",
+        0xC000_0094 => "integer division by zero",
+        0xC000_0409 => "fail-fast",
+        _ => return CONTINUE_SEARCH,
+    };
+    let address = record.ExceptionAddress as usize;
+    let base = EXE_BASE.load(Ordering::Relaxed);
+    let mut line = StackLine::default();
+    let _ = writeln!(
+        line,
+        "native crash: {what} (0x{code:08x}) at exe+0x{:x} (0x{address:x})",
+        address.wrapping_sub(base),
+    );
+    if let Some(mut file) = CRASH_FILE.get() {
+        let _ = file.write_all(line.as_bytes());
+    }
+    CONTINUE_SEARCH
+}
+
+/// A line formatted on the stack, cut at 256 bytes.
+struct StackLine {
+    bytes: [u8; 256],
+    len: usize,
+}
+
+impl Default for StackLine {
+    fn default() -> Self {
+        Self {
+            bytes: [0; 256],
+            len: 0,
+        }
+    }
+}
+
+impl StackLine {
+    fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
+impl std::fmt::Write for StackLine {
+    fn write_str(&mut self, text: &str) -> std::fmt::Result {
+        let take = text.len().min(self.bytes.len() - self.len);
+        self.bytes[self.len..self.len + take].copy_from_slice(&text.as_bytes()[..take]);
+        self.len += take;
+        Ok(())
+    }
 }

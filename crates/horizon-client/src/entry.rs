@@ -47,6 +47,8 @@ pub fn main_with(mods: crate::mod_api::Mods) {
     // (launch_options.rs). A --home given anyway was set first and stays.
     #[cfg(target_vendor = "uwp")]
     if let Some(local) = horizon_threads::uwp::local_folder() {
+        // Its crashes outside Rust's panics leave no trace otherwise: no console, no dialog.
+        horizon_threads::uwp::log_native_crashes(&local.join("native-crash.txt"));
         logging::set_game_home(local);
     }
     // The dedicated server logs in its own folder (--game-dir's), as vanilla's does; the game in its home.

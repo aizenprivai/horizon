@@ -624,6 +624,75 @@ static RUN: Mutex<Option<RunSlot>> = Mutex::new(None);
 /// A panic from the handler, carried back to the thread that called `run`.
 static PANIC: Mutex<Option<Box<dyn Any + Send>>> = Mutex::new(None);
 
+/// The stack the application's handler runs on. The view's UI thread is created by the system
+/// with whatever stack it gives it; a game's handler can need far more (Horizon asks 8 MB of
+/// its main thread on desktop), so it runs on a fiber of this size, on that same thread, which
+/// the `CoreWindow` and its dispatcher require.
+const HANDLER_STACK: usize = 64 * 1024 * 1024;
+
+/// What the handler's fiber needs: the loop's body and the fiber to come back to.
+struct FiberRun {
+    body: *mut (dyn FnMut() + 'static),
+    caller: *mut c_void,
+}
+
+/// Runs `body` (see `RunSlot`) on a fiber with [`HANDLER_STACK`] bytes of stack, on this thread,
+/// and catches its panic for `EventLoop::run`. Where the system refuses a fiber, it runs on
+/// the thread's own stack.
+fn run_on_big_stack(body: *mut (dyn FnMut() + 'static)) {
+    // The `Ex` forms: the plain `CreateFiber` and `ConvertThreadToFiber` are not among the
+    // functions a UWP app may import.
+    use windows::Win32::System::Threading::{
+        ConvertFiberToThread, ConvertThreadToFiberEx, CreateFiberEx, DeleteFiber, SwitchToFiber,
+    };
+
+    unsafe extern "system" fn fiber_main(param: *mut c_void) {
+        // SAFETY: `param` is the `FiberRun` below, alive until this fiber switches back.
+        let run = unsafe { &*(param as *const FiberRun) };
+        catch_body(run.body);
+        // A fiber's routine must never return (that would end the thread): back to the caller,
+        // which deletes this fiber.
+        unsafe { SwitchToFiber(run.caller) };
+    }
+
+    // SAFETY: plain fiber calls on this thread; the `FiberRun` outlives the fiber, which is
+    // deleted only once it has switched back.
+    unsafe {
+        let caller = ConvertThreadToFiberEx(None, 0);
+        if caller.is_null() {
+            tracing::warn!("UWP: no fiber for the handler; running on the thread's stack");
+            catch_body(body);
+            return;
+        }
+        let run = FiberRun { body, caller };
+        let fiber = CreateFiberEx(
+            0,
+            HANDLER_STACK,
+            0,
+            Some(fiber_main),
+            Some(&run as *const FiberRun as _),
+        );
+        if fiber.is_null() {
+            tracing::warn!("UWP: no {HANDLER_STACK}-byte fiber; running on the thread's stack");
+            catch_body(body);
+        } else {
+            SwitchToFiber(fiber);
+            DeleteFiber(fiber);
+        }
+        let _ = ConvertFiberToThread();
+    }
+}
+
+/// Runs the loop's body, keeping a panic for `EventLoop::run` to resume on its own thread.
+fn catch_body(body: *mut (dyn FnMut() + 'static)) {
+    // SAFETY: see `RunSlot`; `EventLoop::run` keeps the closure alive until
+    // `CoreApplication::Run` returns, which is after this.
+    let body = unsafe { &mut *body };
+    if let Err(payload) = panic::catch_unwind(AssertUnwindSafe(body)) {
+        *PANIC.lock().unwrap_or_else(|p| p.into_inner()) = Some(payload);
+    }
+}
+
 #[implement(IFrameworkViewSource)]
 struct ViewSource;
 
@@ -662,12 +731,7 @@ impl IFrameworkView_Impl for View_Impl {
             .as_ref()
             .map(|slot| slot.0);
         if let Some(body) = body {
-            // SAFETY: see `RunSlot`; `EventLoop::run` keeps the closure alive until
-            // `CoreApplication::Run` returns, which is after this.
-            let body = unsafe { &mut *body };
-            if let Err(payload) = panic::catch_unwind(AssertUnwindSafe(body)) {
-                *PANIC.lock().unwrap_or_else(|p| p.into_inner()) = Some(payload);
-            }
+            run_on_big_stack(body);
         }
         Ok(())
     }

@@ -534,6 +534,7 @@ features = [
     "UI_Core",
     "UI_Input",
     "UI_ViewManagement",
+    "Win32_System_Threading",
     "Win32_System_WinRT",
 ]
 

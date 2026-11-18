@@ -25,7 +25,7 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphic
 
 # The UWP app's own data folder (`uwp.rs`), for the Xbox's Dev Mode.
 [target.'cfg(target_vendor = "uwp")'.dependencies]
-windows = { version = "0.62.2", features = ["Storage_Search"] }
+windows = { version = "0.62.2", features = ["Storage_Search", "Win32_System_Diagnostics_Debug", "Win32_System_Kernel", "Win32_System_LibraryLoader"] }
 
 [features]
 # Set by horizon-client's `system-allocator`, which leaves nothing to count.
